@@ -38,7 +38,14 @@ readme = "README.md"
 requires-python = ">=3.13"
 version = "0.1.0"
 
+[project.optional-dependencies]
+transformer = [
+    "datasets>=5.0.0,<6",
+    "transformers[torch,optuna,sentencepiece]>=5.14.1,<6",
+]
+
 [project.scripts]
+local-robot = "app.local.run:run"
 robot = "app:run"
 
 [tool.hatch.build.targets.wheel]
@@ -122,4 +129,4 @@ exclude-newer-package = {destiny-sdk = false}
 package = true
 
 [tool.uv.sources]
-data-extraction-evaluation-toolkit = { path = "../data-extraction-evaluation-toolkit", editable = true }
+data-extraction-evaluation-toolkit = {editable = true, path = "../data-extraction-evaluation-toolkit"}

@@ -2,7 +2,6 @@
 
 import logging
 import tomllib
-from collections import OrderedDict
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -149,6 +148,12 @@ class Settings(BaseSettings):
         description="The number of references to include per batch",
     )
 
+    llm_timeout: float = Field(default=15.0, description="Per-request timeout in seconds. Normal calls run 3-7s.", gt=0.0)
+    llm_num_retries: int = Field(default=3, description="Retries on transient errors.", ge=0)
+
+    llm_requests_per_minute: int = Field(default=1200, description="Number of prompts per minute for the API endpoint", ge=1)
+    llm_tokens_per_minute: int = Field(default=1200 * 1000)
+
     # Robot identification and authentication settings
     robot_secret: SecretStr = Field(
         description="Secret needed for communicating with destiny repo.",
@@ -159,12 +164,20 @@ class Settings(BaseSettings):
         description="Minimum length of title+abstract that we might consider for classification",
     )
 
-    # Files for search query, pre-filter model, and LLM prompts
-    search_query: Path = Field(default=Path(".configs/search-query.txt"), description="Path to file containing search query")
-    model_prefilter: Path = Field(default=Path(".configs/models/high-recall-svm.sklearn"), description="Path to serialised sklearn model")
-    prompt_high_recall: Path = Field(default=Path(".configs/prompts/high-recall.txt"), description="Path to prompt/model config for high-recall LLM")
-    prompt_balanced: Path = Field(default=Path(".configs/prompts/balanced.txt"), description="Path to prompt/model config for balanced LLM")
-    prompt_high_precision: Path = Field(default=Path(".configs/prompts/high-precision.txt"), description="Path to prompt/model config for high-precision LLM")
+    extraction_config: Path = Field(
+        default=Path(".configs/taxonomy/extraction_config.yaml"),
+        description="Path to the frozen deet DataExtractionConfig. Its vocabulary_path and "
+        "vocabulary_mapping_path resolve relative to this file's directory.",
+    )
+
+    upstream_scheme: str = Field(
+        default="domain-inclusion",
+        description="scheme of the inclusion annotation that triggers taxonomy annotation.",
+    )
+    upstream_label: str = Field(
+        default="destiny-high-precision",
+        description="label of the final inclusion decision that triggers taxonomy annotation.",
+    )
 
     # Pre-filter execution settings
     batch_size_prefilter: int = Field(
@@ -172,63 +185,14 @@ class Settings(BaseSettings):
         description="Processing the full enhancement batch at once might consume too much RAM, so we will process the data in smaller batches of this size.",
     )
 
-    # LLM provider settings
-    llm_azure_api_key: str | None = Field(
-        default=None,
-        description="Azure OpenAI API key if using Azure provider.",
-    )
-    llm_azure_api_base: str | None = Field(default=None, description="Base URL for azure openAI.")
-    llm_max_context_tokens: int = Field(default=3000, description="Maximum number of context tokens to include in a single request per document.")
-    llm_timeout: float = Field(default=15.0, description="Per-request timeout in seconds. Normal calls run 3-7s.", gt=0.0)
-    llm_num_retries: int = Field(default=3, description="Retries on transient errors.", ge=0)
-    llm_max_concurrent_prompts: int = Field(default=100, description="Maximum number of prompts to run in parallel", ge=1)
-    llm_prompts_per_minute: int = Field(default=1200, description="Number of prompts per minute for the API endpoint", ge=1)
-
     # Enhancement settings
     enhancement_visibility: Visibility = Field(default=Visibility.PUBLIC, description="Visibility level for Enhancements")
-    set_unseen_false: bool = Field(
-        default=True,
-        description="If true, set BooleanAnnotation(value=False) for references that are not classified because of missing abstracts or chained prompts.",
-    )
-    annotation_scheme_query: str = Field(default="search", description="Defines the value to use for BooleanAnnotation.scheme for search queries")
-    annotation_scheme_incl: str = Field(
-        default="domain-inclusion",
-        description="Defines the value to use for BooleanAnnotation.scheme for inclusion classification",
-    )
-    annotation_label_query: str = Field(default="destiny-ic1-inclusion", description="Defines the value to use for BooleanAnnotation.label for search queries")
-    annotation_label_prefilter: str = Field(
-        default="destiny-prefilter",
-        description="Defines the value to use for BooleanAnnotation.label for pre-filtering",
-    )
-    annotation_label_recall: str = Field(
-        default="destiny-high-recall",
-        description="Defines the value to use for BooleanAnnotation.label for high-recall LLM decisions",
-    )
-    annotation_label_balanced: str = Field(
-        default="destiny-balanced",
-        description="Defines the value to use for BooleanAnnotation.label for balanced LLM decisions",
-    )
-    annotation_label_precision: str = Field(
-        default="destiny-high-precision",
-        description="Defines the value to use for BooleanAnnotation.label for high-precision LLM decisions",
-    )
 
     @model_validator(mode="after")
     def _warn_missing_otel_api_key(self) -> "Settings":
         if self.otel_enabled and not (self.otel_config and self.otel_config.api_key):
             logging.getLogger("inclusion-robot").warning("OTEL_ENABLED set but no Honeycomb api_key in OTEL_CONFIG")
         return self
-
-    @property
-    def prompt_configs(self) -> OrderedDict[str, Path]:
-        # OrderedDict not necessary for newer python versions, just making extra sure...
-        return OrderedDict(
-            [
-                (self.annotation_label_recall, self.prompt_high_recall),
-                (self.annotation_label_balanced, self.prompt_balanced),
-                (self.annotation_label_precision, self.prompt_high_precision),
-            ],
-        )
 
 
 @lru_cache(maxsize=1)
