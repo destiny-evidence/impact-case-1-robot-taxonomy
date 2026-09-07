@@ -77,7 +77,7 @@ def read_toml_value(path_to_toml: str | Path, *path: str) -> str:
                 f"{steps} did not lead to singular string value in {path_to_toml}",
             )
 
-        return cast("str", current_node)  # type: ignore[redundant-cast]
+        return cast("str", current_node)
 
 
 class OTelConfig(BaseModel):
@@ -188,11 +188,23 @@ class Settings(BaseSettings):
     # Enhancement settings
     enhancement_visibility: Visibility = Field(default=Visibility.PUBLIC, description="Visibility level for Enhancements")
 
+    vocabulary_uid: str = Field(description="Project UID under which the vocabulary is published in the Vocabulary Builder.")
+
+    vocabulary_version: str = Field(description="Published vocabulary version.")
+
     @model_validator(mode="after")
     def _warn_missing_otel_api_key(self) -> "Settings":
         if self.otel_enabled and not (self.otel_config and self.otel_config.api_key):
             logging.getLogger("inclusion-robot").warning("OTEL_ENABLED set but no Honeycomb api_key in OTEL_CONFIG")
         return self
+
+    @property
+    def vocabulary_uri(self) -> HttpUrl:
+        return HttpUrl("https://vocab.evidence-repository.org/published/" f"{self.vocabulary_uid}/{self.vocabulary_version}/context.jsonld")
+
+    @property
+    def context_uri(self) -> str:
+        return "https://vocab.evidence-repository.org/published/" f"{self.vocabulary_uid}/{self.vocabulary_version}/context.jsonld"
 
 
 @lru_cache(maxsize=1)
