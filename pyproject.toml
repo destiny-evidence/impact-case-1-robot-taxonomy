@@ -19,6 +19,7 @@ authors = [
     {email = "tim.repke@pik-potsdam.de", name = "Tim Repke"},
 ]
 dependencies = [
+    "data-extraction-evaluation-toolkit",
     "destiny-sdk>=0.16.0",
     "httpx>=0.28.0,<0.29.0",
     "litellm>=1.96.2",
@@ -35,7 +36,7 @@ dependencies = [
 description = "Robot for classifying the relevance for climate and health (DESTinY IC1)"
 name = "impact-case-1-robot-inclusion"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 version = "0.1.0"
 
 [project.optional-dependencies]
@@ -126,3 +127,6 @@ overrides."tool.coverage.paths.source".inline_arrays = false
 exclude-newer = "P5D"
 exclude-newer-package = {destiny-sdk = false}
 package = true
+
+[tool.uv.sources]
+data-extraction-evaluation-toolkit = { path = "../data-extraction-evaluation-toolkit", editable = true }
