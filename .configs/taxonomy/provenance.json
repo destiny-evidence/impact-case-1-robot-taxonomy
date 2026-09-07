@@ -1,0 +1,11 @@
+{
+  "source_experiment": "2026-09-07_17-44-45_pruned_taxonomy",
+  "method": "llm",
+  "model": "gpt-5.6-luna",
+  "prompts_csv": "prompts_used.csv",
+  "votes": 3,
+  "vocabulary_ttl": "destiny-1-6-core-evidence-repository-classes_pruned_edited.ttl",
+  "vocabulary_mapping": "destiny_taxonomy_nacsos_mapping.json",
+  "impact_case_1_git_sha": "5a659b6e0edd7f69ccf4ac8b14baa480bb66e843",
+  "frozen_at": "2026-09-07T17:52:07.829642+00:00"
+}

@@ -182,5 +182,4 @@ cython_debug/
 
 .misc/
 .scratch/
-.configs/
 .cache/

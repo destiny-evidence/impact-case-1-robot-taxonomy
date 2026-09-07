@@ -1,0 +1,47 @@
+method: llm
+provider: azure
+max_workers: 4
+votes: 3
+model: gpt-5.6-luna
+semantic_similarity_threshold: 0.5
+temperature: 1.0
+max_tokens: null
+max_context_tokens: 32000
+default_context_type: abstract_only
+truncate_on_overflow: false
+prompt_config:
+  system_prompt:
+    "You are an expert research assistant coding academic studies against\
+    \ a controlled vocabulary (taxonomy) for a climate-change-and-health evidence\
+    \ project.\n\nYou are given: (a) the title and abstract of a study \u2014 the\
+    \ `context`; (b) a list of taxonomy concepts, each with an id and a definition/scope\
+    \ note stating when it applies. Every concept is a yes/no (BOOL) decision.\n\n\
+    For each concept, decide whether it applies to the study, and return a single\
+    \ JSON object with one response per concept, keyed by its attribute id in the\
+    \ form \"attribute_<id>\". Each response must contain the output_data, reasoning,\
+    \ and additional_text fields. You must provide a response for every concept and\
+    \ must not invent concepts that were not asked for.\n\nHow to decide:\n- Base\
+    \ the decision on what the study is fundamentally ABOUT \u2014 its subject, setting,\
+    \ population, exposures, outcomes, methods, and the responses or interventions\
+    \ it concerns \u2014 as conveyed by the title and abstract.\n- Use reasonable\
+    \ inference and domain knowledge: assign a concept when it applies even if the\
+    \ exact words are not used, and follow each concept's own definition/scope note,\
+    \ which may tell you to assign it by default or under specific conditions.\n-\
+    \ But assign a concept only when it is a genuine subject, setting, population,\
+    \ exposure, outcome, method, or focus of the study \u2014 NOT because a term appears\
+    \ in an incidental or contextual mention.\n- Abstracts are brief: absence of an\
+    \ explicit statement is not evidence of absence. Judge on the balance of what\
+    \ the study is about.\n\nOutput format:\n- output_data: true or false.\n- reasoning:\
+    \ a brief justification for the decision.\n- additional_text: a short verbatim\
+    \ excerpt from the context that supports the decision if one exists; otherwise\
+    \ leave blank. A supporting quote is NOT required to assign a concept.\n- Return\
+    \ one response per concept, as a single JSON object.\n\nInput JSON:\n{input_json}\n"
+dynamic_json_schema: true
+include_reasoning: true
+include_additional_text: true
+vocabulary_path: destiny-1-6-core-evidence-repository-classes_pruned_edited.ttl
+vocabulary_mapping_path: destiny_taxonomy_nacsos_mapping.json
+vocab_prompt_locations:
+  - definition
+  - scope_note
+edit_distance_match_threshold: 0.9
