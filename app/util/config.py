@@ -148,7 +148,6 @@ class Settings(BaseSettings):
         description="The number of references to include per batch",
     )
 
-    llm_timeout: float = Field(default=15.0, description="Per-request timeout in seconds. Normal calls run 3-7s.", gt=0.0)
     llm_num_retries: int = Field(default=3, description="Retries on transient errors.", ge=0)
 
     llm_requests_per_minute: int = Field(default=1200, description="Number of prompts per minute for the API endpoint", ge=1)
@@ -168,11 +167,6 @@ class Settings(BaseSettings):
     robot_secret: SecretStr = Field(
         description="Secret needed for communicating with destiny repo.",
     )
-    # Miscellaneous settings
-    min_text_length: int = Field(
-        default=200,
-        description="Minimum length of title+abstract that we might consider for classification",
-    )
 
     extraction_config: Path = Field(
         default=Path(".configs/taxonomy/extraction_config.yaml"),
@@ -189,12 +183,6 @@ class Settings(BaseSettings):
     upstream_label: str = Field(
         default="destiny-high-precision",
         description="label of the final inclusion decision that triggers taxonomy annotation.",
-    )
-
-    # Pre-filter execution settings
-    batch_size_prefilter: int = Field(
-        default=2000,
-        description="Processing the full enhancement batch at once might consume too much RAM, so we will process the data in smaller batches of this size.",
     )
 
     abandon_threshold: float = Field(
