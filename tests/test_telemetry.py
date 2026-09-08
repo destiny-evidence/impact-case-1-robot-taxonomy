@@ -21,7 +21,7 @@ def test_otel_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OTEL_ENABLED", raising=False)
     monkeypatch.delenv("OTEL_CONFIG", raising=False)
 
-    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    settings = Settings(_env_file=None)
 
     assert settings.otel_enabled is False
     assert settings.otel_config is None
@@ -33,7 +33,7 @@ def test_otel_config_parsed_from_json_env(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("OTEL_ENABLED", "true")
     monkeypatch.setenv("OTEL_CONFIG", '{"api_key": "k"}')
 
-    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    settings = Settings(_env_file=None)
 
     assert settings.otel_enabled is True
     assert settings.otel_config is not None
@@ -48,7 +48,7 @@ class _FailingRunner(Runner):
     def _automation_query(self) -> "RobotAutomationIn":
         raise NotImplementedError
 
-    async def _loop_task(self) -> None:
+    async def _loop_task(self) -> bool:
         raise RuntimeError("boom")
 
 

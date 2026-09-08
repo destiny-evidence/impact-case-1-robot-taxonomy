@@ -49,12 +49,11 @@ local-robot = "app.local.run:run"
 robot = "app:run"
 
 [tool.hatch.build.targets.wheel]
-packages = ["app"] # new: tell hatchling where the code is
+packages = ["app"]
 
 [tool.mypy]
 # for strict mypy: (this is the tricky one :-))
 disallow_untyped_defs = true
-exclude = ["app/classifiers/transformer.py"]
 explicit_package_bases = true
 files = ['app']
 plugins = ["pydantic.mypy"]
@@ -63,8 +62,7 @@ strict = true
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
 module = [
-    "joblib.*",
-    "sklearn.*",
+    "deet.*",
 ]
 
 [tool.pytest.ini_options]

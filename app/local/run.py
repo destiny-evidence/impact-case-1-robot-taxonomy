@@ -10,7 +10,7 @@ import typer
 app = typer.Typer(help="DESTinY IC1 taxonomy robot.")
 
 
-@app.command("try-extract")  # type: ignore[misc]
+@app.command("try-extract")
 def try_extract(
     file: Annotated[Path, typer.Argument(help="Text file, one document per line.")],
     limit: Annotated[int, typer.Option(help="Only process the first N non-empty lines.")] = 3,

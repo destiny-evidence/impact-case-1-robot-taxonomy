@@ -5,7 +5,7 @@ import tomllib
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from destiny_sdk.visibility import Visibility
@@ -72,12 +72,12 @@ def read_toml_value(path_to_toml: str | Path, *path: str) -> str:
             if not (current_node := current_node.get(step, None)):
                 raise ValueError(f"`{steps}` not present in {path_to_toml}")
 
-        if current_node is None or type(current_node) is not str:
-            raise ValueError(
+        if not isinstance(current_node, str):
+            raise ValueError(  # noqa: TRY004
                 f"{steps} did not lead to singular string value in {path_to_toml}",
             )
 
-        return cast("str", current_node)
+        return current_node
 
 
 class OTelConfig(BaseModel):
@@ -203,7 +203,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _warn_missing_otel_api_key(self) -> "Settings":
         if self.otel_enabled and not (self.otel_config and self.otel_config.api_key):
-            logging.getLogger("inclusion-robot").warning("OTEL_ENABLED set but no Honeycomb api_key in OTEL_CONFIG")
+            logging.getLogger("taxonomy-robot").warning("OTEL_ENABLED set but no Honeycomb api_key in OTEL_CONFIG")
         return self
 
     @property

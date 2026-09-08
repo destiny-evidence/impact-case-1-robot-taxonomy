@@ -34,6 +34,7 @@ repos:
             pydantic-settings,
             types-cachetools,
             httpx,
+            typer,
             types-pyyaml,
           ]
   - repo: https://github.com/pre-commit/mirrors-prettier
