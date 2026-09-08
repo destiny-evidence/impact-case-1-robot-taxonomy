@@ -4,6 +4,9 @@ import asyncio
 import csv
 from pathlib import Path
 
+from deet.data_models.base import Attribute
+from deet.data_models.taxonomy import Concept, ConceptScheme, MappedConceptScheme
+
 from app.util.config import Settings
 
 
@@ -17,54 +20,64 @@ class TaxonomyExtractor:
     """
 
     def __init__(self, settings: Settings) -> None:
-        from deet.data_models.base import Attribute, AttributeType
         from deet.data_models.taxonomy import load_schemes_from_ttl
         from deet.extractors.base_extractor import DataExtractionConfig
         from deet.extractors.extractor_registry import get_data_extractor
+        from deet.extractors.hierarchical.base import VocabularyLLMExtractor
 
-        bundle = settings.extraction_config.parent
         config = DataExtractionConfig.from_yaml(settings.extraction_config)
+        if not config.vocabulary_path:
+            raise ValueError("Config does not supply a vocabulary path")
+        config_dir = settings.extraction_config.parent
+        vocabulary_ttl = config_dir / config.vocabulary_path.name
 
-        # Prompt text from the TTL (basename in the frozen config -> bundle dir).
-        ttl_path = bundle / Path(config.vocabulary_path).name
-        ttl_by_concept: dict[str, tuple[str, str, str]] = {}
-        for scheme in load_schemes_from_ttl(ttl_path):
-            for concept in scheme.concepts.values():
-                ttl_by_concept[concept.identifier] = (
-                    concept.build_prompt(config.vocab_prompt_locations),
-                    concept.uri,
-                    concept.pref_label,
-                )
+        csv_attributes = self._load_csv_attributes(settings.extraction_attribute_csv)
+        schemes = load_schemes_from_ttl(vocabulary_ttl)
+        mapped_schemes = self._build_mapped_schemes(schemes, csv_attributes)
 
-        # Attribute identity from the frozen CSV; reconcile against the TTL.
-        canonical = list(csv.DictReader((bundle / "prompts_used.csv").open()))
-        csv_ids = {row["concept_id"] for row in canonical}
-        ttl_ids = set(ttl_by_concept)
-        if csv_ids != ttl_ids:
-            missing, extra = sorted(csv_ids - ttl_ids), sorted(ttl_ids - csv_ids)
-            raise RuntimeError(
-                f"Frozen attribute set drifted from the TTL. "
-                f"In CSV but not TTL: {missing}. In TTL but not CSV: {extra}. "
-                f"Re-run export_config_to_robot.py against the current TTL."
+        self._attributes = [concept.attribute for ms in mapped_schemes for concept in ms.concepts.values()]
+
+        self._uri_by_attr_id = {concept.attribute.attribute_id: concept.uri for ms in mapped_schemes for concept in ms.concepts.values()}
+
+        extractor = get_data_extractor(config)
+        if isinstance(extractor, VocabularyLLMExtractor):
+            extractor.mapped_schemes = mapped_schemes
+        self._extractor = extractor
+
+    def _load_csv_attributes(self, csv_path: Path) -> list[Attribute]:
+        from deet.data_models.base import Attribute, AttributeType
+
+        rows = list(csv.DictReader(csv_path.open()))
+        return [
+            Attribute(
+                prompt=row["prompt"],
+                output_data_type=AttributeType.BOOL,
+                attribute_id=int(row["attribute_id"]),
+                attribute_label=row["attribute_label"],
+                concept_id=row["concept_id"],
             )
+            for row in rows
+        ]
 
-        self._attributes = []
-        self._uri_by_attr_id: dict[int, str] = {}
-        for row in canonical:
-            prompt, uri, label = ttl_by_concept[row["concept_id"]]
-            attr_id = int(row["attribute_id"])
-            self._attributes.append(
-                Attribute(
-                    prompt=prompt,
-                    output_data_type=AttributeType.BOOL,
-                    attribute_id=attr_id,
-                    attribute_label=label,
-                    concept_id=row["concept_id"],
+    def _build_mapped_schemes(self, schemes: list[ConceptScheme[Concept]], attributes: list[Attribute]) -> list[MappedConceptScheme]:
+        from deet.data_models.taxonomy import MappedConcept, MappedConceptScheme
+
+        attr_by_concept_id = {attr.concept_id: attr for attr in attributes if attr.concept_id is not None}
+        mapped_schemes: list[MappedConceptScheme] = []
+        for scheme in schemes:
+            mapped_concepts = {}
+            for concept_id, concept in scheme.concepts.items():
+                attr = attr_by_concept_id.get(concept_id)
+                if attr is None:
+                    raise ValueError(f"Concept {concept} does not exist in attributes.")
+
+                mapped_concepts[concept_id] = MappedConcept(**concept.model_dump(), attribute=attr)
+            mapped_schemes.append(
+                MappedConceptScheme(
+                    title=scheme.title, description=scheme.description, uri=scheme.uri, top_concepts=scheme.top_concepts, concepts=mapped_concepts
                 )
             )
-            self._uri_by_attr_id[attr_id] = uri
-
-        self._extractor = get_data_extractor(config)
+        return mapped_schemes
 
     async def extract(self, title: str | None, abstract: str | None) -> list[str]:
         """Return the concept URIs the model marks as applying to this reference."""

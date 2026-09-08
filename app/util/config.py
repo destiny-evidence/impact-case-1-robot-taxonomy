@@ -170,6 +170,8 @@ class Settings(BaseSettings):
         "vocabulary_mapping_path resolve relative to this file's directory.",
     )
 
+    extraction_attribute_csv: Path = Field(default=Path(".configs/taxonomy/prompts_used.csv"), description="Path to the attribute csv.")
+
     upstream_scheme: str = Field(
         default="domain-inclusion",
         description="scheme of the inclusion annotation that triggers taxonomy annotation.",
