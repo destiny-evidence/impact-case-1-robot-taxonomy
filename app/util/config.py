@@ -154,6 +154,8 @@ class Settings(BaseSettings):
     llm_requests_per_minute: int = Field(default=1200, description="Number of prompts per minute for the API endpoint", ge=1)
     llm_tokens_per_minute: int = Field(default=1200 * 1000)
 
+    llm_max_concurrent_extractions: int = Field(default=100, description="Maximum number of prompts to run in parallel", ge=1)
+
     # Robot identification and authentication settings
     robot_secret: SecretStr = Field(
         description="Secret needed for communicating with destiny repo.",
