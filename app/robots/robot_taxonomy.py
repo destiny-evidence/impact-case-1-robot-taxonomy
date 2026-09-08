@@ -5,12 +5,14 @@ from uuid import UUID
 
 from destiny_sdk.enhancements import Enhancement
 from destiny_sdk.references import Reference
-from destiny_sdk.robots import EnhancementResultEntry, RobotAutomationIn
-from opentelemetry import trace
+from destiny_sdk.robots import EnhancementResultEntry, LinkedRobotError, RobotAutomationIn
+from tenacity import AsyncRetrying, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
 from app.enhancements import build_linked_data_enhancement
-from app.extractor import TaxonomyExtractor
+from app.extractor import InvalidDocumentError, TaxonomyExtractor
 from app.util import Runner, get_title_abstract_from_reference
+
+NON_RETRYABLE_ERRORS = (InvalidDocumentError,)
 
 
 class TaxonomyRobot(Runner):
@@ -21,6 +23,12 @@ class TaxonomyRobot(Runner):
     def __init__(self, name: str) -> None:
         super().__init__(name=name)
         self.extractor = TaxonomyExtractor(self.settings)
+        self._retrying = AsyncRetrying(
+            retry=retry_if_not_exception_type(NON_RETRYABLE_ERRORS),
+            stop=stop_after_attempt(self.settings.llm_num_retries + 1),
+            wait=wait_exponential(multiplier=1, max=30),
+            reraise=True,
+        )
 
     def _automation_query(self) -> RobotAutomationIn:
         return RobotAutomationIn(
@@ -39,9 +47,8 @@ class TaxonomyRobot(Runner):
     async def _annotate_reference(self, reference: Reference) -> list[str]:
         """Return applied concept URIs for one reference."""
         title, abstract = get_title_abstract_from_reference(reference)
-        if abstract is None:
-            return []
-        return await self.extractor.extract(title=title, abstract=abstract)
+        concept_uris: list[str] = await self._retrying(self.extractor.extract, title=title, abstract=abstract)
+        return concept_uris
 
     async def _loop_task(self) -> bool:
         """Poll, annotate, and submit one batch."""
@@ -52,20 +59,35 @@ class TaxonomyRobot(Runner):
             return False
 
         results: dict[UUID, list[str]] = {}
+        permanent: dict[UUID, str] = {}
+        failed: dict[UUID, str] = {}
 
         with self.tracer.start_as_current_span("taxonomy.batch") as span:
             span.set_attribute("app.reference.count", len(references))
 
             outcomes = await asyncio.gather(*(self._annotate_reference(reference) for reference in references), return_exceptions=True)
             for reference, outcome in zip(references, outcomes, strict=True):
-                if isinstance(outcome, BaseException):
-                    self.loop_logger.error(f"Abandoning batch {batch_info.id}for redelivery: {outcome}")
-                    span.set_status(trace.StatusCode.ERROR, f"abandoned for redelivery: {outcome}")
-                    return False
-                results[reference.id] = outcome
+                if not isinstance(outcome, BaseException):
+                    results[reference.id] = outcome
+                elif isinstance(outcome, NON_RETRYABLE_ERRORS):
+                    permanent[reference.id] = f"{type(outcome).__name__}: {outcome}"
+                else:
+                    failed[reference.id] = f"{type(outcome).__name__}: {outcome}"
 
-            span.set_attribute("app.taxonomy_annotated", len(results))
+            if len(failed) > self.settings.abandon_threshold * len(references):
+                self.loop_logger.critical(f"{len(failed)}/{len(references)} failed after retries; endpoint looks down, shutting down.")
+                await self.stop()
+                return False
 
+            span.set_attributes(
+                {
+                    "app.taxonomy_annotated": len(results),
+                    "app.taxonomy_permanent_failures": len(permanent),
+                    "app.taxonomy_failed": len(failed),
+                }
+            )
+
+        failures = {**permanent, **failed}
         entries: list[EnhancementResultEntry] = [
             Enhancement(
                 reference_id=reference_id,
@@ -76,9 +98,13 @@ class TaxonomyRobot(Runner):
             )
             for reference_id, uris in results.items()
         ]
+        entries += [LinkedRobotError(reference_id=reference_id, message=message) for reference_id, message in failures.items()]
 
         await self.repository.submit_enhancements(batch_info=batch_info, enhancements=entries)
 
-        self.loop_logger.info(f"[Total: {self.total_entries_processed:,} entries] Submitted {len(entries):,} ")
+        self.loop_logger.info(
+            f"[Total: {self.total_entries_processed:,} entries] Submitted {len(results):,} enhancements, "
+            f"{len(failures):,} failures ({len(permanent):,} permanent, {len(failed):,} failed-after-retries)"
+        )
 
         return True

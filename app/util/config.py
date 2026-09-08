@@ -158,6 +158,12 @@ class Settings(BaseSettings):
 
     max_document_tokens: int = Field(default=1500, description="Maximum allowable tokens for a document we are extracting from", ge=1)
 
+    min_document_tokens: int = Field(
+        default=50,
+        description="Minimum tokens for a document to be extractable; below this (e.g. missing abstract) it is skipped as invalid",
+        ge=1,
+    )
+
     # Robot identification and authentication settings
     robot_secret: SecretStr = Field(
         description="Secret needed for communicating with destiny repo.",
@@ -189,6 +195,14 @@ class Settings(BaseSettings):
     batch_size_prefilter: int = Field(
         default=2000,
         description="Processing the full enhancement batch at once might consume too much RAM, so we will process the data in smaller batches of this size.",
+    )
+
+    abandon_threshold: float = Field(
+        default=0.1,
+        description="Shut the robot down (leaving the batch unfinalised for redelivery) if more than this "
+        "fraction of references fail after retries — a signal of a systemic outage rather than bad documents.",
+        ge=0.0,
+        le=1.0,
     )
 
     # Enhancement settings

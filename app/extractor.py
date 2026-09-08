@@ -21,6 +21,10 @@ from app.util.config import Settings
 from app.util.util import RateLimiter
 
 
+class InvalidDocumentError(Exception):
+    """Document is outside the valid token range (missing/too short, or too long)."""
+
+
 class TaxonomyExtractor:
     """
     Runs deet flat LLM extraction and maps positive concepts to their URIs.
@@ -116,10 +120,12 @@ class TaxonomyExtractor:
         return max((depth_from(root) for root in scheme.roots), default=0)
 
     def _validate_text_tokens(self, text: str) -> None:
-        """Validate that a text to be extracted is under our maximum token length."""
+        """Validate the document text is within the configured token range."""
         token_count = count_tokens(self._config.model, text)
+        if token_count < self._settings.min_document_tokens:
+            raise InvalidDocumentError(f"Document has {token_count} tokens, under the {self._settings.min_document_tokens} minimum")
         if token_count > self._settings.max_document_tokens:
-            raise ValueError("Document is longer than maximum tokens")
+            raise InvalidDocumentError(f"Document has {token_count} tokens, over the {self._settings.max_document_tokens} maximum")
 
     async def extract(self, title: str | None, abstract: str | None) -> list[str]:
         """Return the concept URIs the model marks as applying to this reference."""
