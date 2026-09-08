@@ -17,10 +17,4 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups --no-editable
 
-ENV SEARCH_QUERY=/app/.configs/search-query.txt \
-    MODEL_PREFILTER=/app/.configs/models/high-recall-svm.sklearn \
-    PROMPT_HIGH_RECALL=/app/.configs/prompts/high_recall.txt \
-    PROMPT_BALANCED=/app/.configs/prompts/balanced.txt \
-    PROMPT_HIGH_PRECISION=/app/.configs/prompts/high_precision.txt
-
 CMD ["robot"]
