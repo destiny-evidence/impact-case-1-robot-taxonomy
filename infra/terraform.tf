@@ -6,7 +6,7 @@ terraform {
 
     workspaces {
       project = "DESTINY"
-      tags    = ["impact-case-1-robot-inclusion"]
+      tags    = ["impact-case-1-robot-taxonomy"]
     }
   }
 

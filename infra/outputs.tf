@@ -8,6 +8,6 @@ output "identity_principal_id" {
   value       = azurerm_user_assigned_identity.app.principal_id
 }
 
-output "container_app_names" {
-  value = { for k, a in azurerm_container_app.robot : k => a.name }
+output "container_app_name" {
+  value = azurerm_container_app.robot.name
 }

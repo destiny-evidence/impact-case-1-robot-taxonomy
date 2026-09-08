@@ -1,7 +1,7 @@
 variable "app_name" {
   description = "Name for the shared resources (resource group, identity, container app environment) and the ACR image repository. Container apps are named separately."
   type        = string
-  default     = "destiny-inclusion-robot"
+  default     = "destiny-taxonomy-robot"
 }
 
 variable "environment" {
@@ -40,33 +40,44 @@ variable "project" {
   default     = "DESTINY"
 }
 
-# Robots
-variable "robots" {
-  description = "One container app per entry. The key is the `robot` CLI subcommand the container runs."
-  type = map(object({
-    robot_id         = string
-    memory           = optional(string, "1Gi")
-    replicas         = optional(number, 1)
-    interval_seconds = optional(number, 30)
-    batch_size       = optional(number, 500)
-    # Batches in flight per container; lets one worker prompt while another does repository I/O.
-    concurrent_batches = optional(number, 1)
-    extra_env          = optional(map(string), {})
-  }))
-  validation {
-    condition     = toset(keys(var.robots)) == toset(["query", "prefilter", "llm"])
-    error_message = "var.robots must have exactly the keys \"query\", \"prefilter\" and \"llm\"."
-  }
+variable "robot_id" {
+  description = "Client id the robot uses with the DESTINY repository"
+  type        = string
 }
 
-variable "robot_secrets" {
-  description = "HMAC secret each robot uses with the DESTINY repository, keyed to match var.robots."
-  type        = map(string)
+variable "robot_secret" {
+  description = "HMAC secret the robot uses with the DESTINY repository."
+  type        = string
   sensitive   = true
 }
 
+variable "memory" {
+  type    = string
+  default = "2Gi"
+}
+
+variable "replicas" {
+  type    = number
+  default = 1
+}
+
+variable "interval_seconds" {
+  type    = number
+  default = 30
+}
+
+variable "batch_size" {
+  type    = number
+  default = 500
+}
+
+variable "concurrent_batches" {
+  type    = number
+  default = 1
+}
+
 variable "extra_env" {
-  description = "Environment variables applied to every robot."
+  description = "Environment variables applied to the robot."
   type        = map(string)
   default     = {}
 }
@@ -79,16 +90,22 @@ variable "destiny_repository_url" {
 }
 
 # LLM
-variable "llm_max_concurrent_prompts" {
-  description = "Maximum LLM prompts in flight per container. Divide by replica count if the LLM robot is scaled out."
+variable "llm_max_concurrent_extractions" {
+  description = "Maximum LLM requests in flight per container. Divide by replica count if the robot is scaled out."
   type        = number
   default     = 100
 }
 
-variable "llm_prompts_per_minute" {
-  description = "LLM prompts per minute per container, against the Foundry deployment quota. Divide by replica count if the LLM robot is scaled out."
+variable "llm_requests_per_minute" {
+  description = "LLM requests per minute per container, against the Foundry deployment quota. Divide by replica count if the robot is scaled out."
   type        = number
   default     = 1200
+}
+
+variable "llm_tokens_per_minute" {
+  description = "LLM tokens per minute per container, against the Foundry deployment quota. Divide by replica count if the robot is scaled out."
+  type        = number
+  default     = 1200000
 }
 
 variable "llm_azure_api_base" {
@@ -102,9 +119,13 @@ variable "llm_azure_api_key" {
   sensitive   = true
 }
 
-# Prefilter model
-variable "model_blob_url" {
-  description = "Full URL of the serialised prefilter model blob, which the deploy workflow bakes into the image. The Actions service principal needs the Storage Blob Data Reader role on it."
+# Vocabulary
+variable "vocabulary_uid" {
+  description = "Project UID of the published vocabulary in the Vocabulary Builder"
+  type        = string
+}
+variable "vocabulary_version" {
+  description = "Published vocabulary version"
   type        = string
 }
 
@@ -142,7 +163,7 @@ variable "shared_resource_group_name" {
 variable "github_repo" {
   description = "GitHub repository for Actions OIDC"
   type        = string
-  default     = "destiny-evidence/impact-case-1-robot-inclusion"
+  default     = "destiny-evidence/impact-case-1-robot-taxonomy"
 }
 
 variable "github_owner_id" {

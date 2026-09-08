@@ -51,19 +51,20 @@ resource "azurerm_container_app_environment" "this" {
 
 locals {
   shared_env = {
-    ENV                        = var.environment
-    BASE_URL                   = var.destiny_repository_url
-    LLM_AZURE_API_BASE         = var.llm_azure_api_base
-    LLM_MAX_CONCURRENT_PROMPTS = var.llm_max_concurrent_prompts
-    LLM_PROMPTS_PER_MINUTE     = var.llm_prompts_per_minute
-    OTEL_ENABLED               = var.otel_enabled
+    ENV                            = var.environment
+    BASE_URL                       = var.destiny_repository_url
+    AZURE_API_BASE                 = var.llm_azure_api_base
+    LLM_MAX_CONCURRENT_EXTRACTIONS = var.llm_max_concurrent_extractions
+    LLM_REQUESTS_PER_MINUTE        = var.llm_requests_per_minute
+    LLM_TOKENS_PER_MINUTE          = var.llm_tokens_per_minute
+    VOCABULARY_UID                 = var.vocabulary_uid
+    VOCABULARY_VERSION             = var.vocabulary_version
+    OTEL_ENABLED                   = var.otel_enabled
   }
 }
 
 resource "azurerm_container_app" "robot" {
-  for_each = var.robots
-
-  name                         = local.robot_app_names[each.key]
+  name                         = local.robot_app_name
   resource_group_name          = azurerm_resource_group.this.name
   container_app_environment_id = azurerm_container_app_environment.this.id
   revision_mode                = "Single"
@@ -82,7 +83,7 @@ resource "azurerm_container_app" "robot" {
 
   secret {
     name  = "robot-secret"
-    value = var.robot_secrets[each.key]
+    value = var.robot_secret
   }
 
   secret {
@@ -99,30 +100,28 @@ resource "azurerm_container_app" "robot" {
   }
 
   template {
-    min_replicas = each.value.replicas
-    max_replicas = each.value.replicas
+    min_replicas = var.replicas
+    max_replicas = var.replicas
 
     container {
-      name = each.key
+      name = "taxonomy"
 
       # Placeholder only. The deploy workflow owns the image from then on, and
       # the lifecycle block below stops Terraform reverting it.
-      image  = "mcr.microsoft.com/k8se/quickstart:latest"
-      memory = each.value.memory
-      # Container Apps requires cpu, but couples it to memory.
-      cpu     = tonumber(trimsuffix(each.value.memory, "Gi")) / 2
-      command = ["robot", each.key]
+      image   = "mcr.microsoft.com/k8se/quickstart:latest"
+      memory  = var.memory
+      cpu     = tonumber(trimsuffix(var.memory, "Gi")) / 2
+      command = ["robot"]
 
       dynamic "env" {
         for_each = merge(
           local.shared_env,
           {
-            ROBOT_ID           = each.value.robot_id
-            INTERVAL_SECONDS   = each.value.interval_seconds
-            BATCH_SIZE         = each.value.batch_size
-            CONCURRENT_BATCHES = each.value.concurrent_batches
+            ROBOT_ID           = var.robot_id
+            INTERVAL_SECONDS   = var.interval_seconds
+            BATCH_SIZE         = var.batch_size
+            CONCURRENT_BATCHES = var.concurrent_batches
           },
-          each.value.extra_env,
           var.extra_env,
         )
         content {
@@ -137,12 +136,10 @@ resource "azurerm_container_app" "robot" {
       }
 
       env {
-        name        = "LLM_AZURE_API_KEY"
+        name        = "AZURE_API_KEY"
         secret_name = "llm-azure-api-key"
       }
 
-      # Carries the Honeycomb ingest key, so it is a secret rather than a plain
-      # value in the dynamic env block above.
       env {
         name        = "OTEL_CONFIG"
         secret_name = "otel-config"
@@ -150,7 +147,6 @@ resource "azurerm_container_app" "robot" {
     }
   }
 
-  # The deploy workflow, not Terraform, owns which image tag is live.
   lifecycle {
     ignore_changes = [template[0].container[0].image]
   }
