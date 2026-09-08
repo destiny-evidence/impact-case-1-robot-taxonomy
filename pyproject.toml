@@ -35,7 +35,7 @@ dependencies = [
 description = "Robot for annotating documents with a climate and health taxonomy (DESTinY IC1)"
 name = "impact-case-1-robot-taxonomy"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 version = "0.1.0"
 
 [project.optional-dependencies]
@@ -129,4 +129,4 @@ exclude-newer-package = {destiny-sdk = false}
 package = true
 
 [tool.uv.sources]
-data-extraction-evaluation-toolkit = {editable = true, path = "../data-extraction-evaluation-toolkit"}
+data-extraction-evaluation-toolkit = {git = "https://github.com/destiny-evidence/data-extraction-evaluation-toolkit", rev = "3fb14e91989c2abdfaa98cf44cd85f97a627f137"}
