@@ -156,6 +156,8 @@ class Settings(BaseSettings):
 
     llm_max_concurrent_extractions: int = Field(default=100, description="Maximum number of prompts to run in parallel", ge=1)
 
+    max_document_tokens: int = Field(default=1500, description="Maximum allowable tokens for a document we are extracting from", ge=1)
+
     # Robot identification and authentication settings
     robot_secret: SecretStr = Field(
         description="Secret needed for communicating with destiny repo.",

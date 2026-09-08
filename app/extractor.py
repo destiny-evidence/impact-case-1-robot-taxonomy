@@ -4,9 +4,18 @@ import asyncio
 import csv
 from pathlib import Path
 
-from deet.data_models.base import Attribute
-from deet.data_models.taxonomy import Concept, ConceptScheme, MappedConceptScheme
+from deet.data_models.base import Attribute, AttributeType
+from deet.data_models.taxonomy import (
+    Concept,
+    ConceptScheme,
+    MappedConcept,
+    MappedConceptScheme,
+    load_schemes_from_ttl,
+)
 from deet.extractors.base_extractor import DataExtractionConfig, ExtractionMethod
+from deet.extractors.extractor_registry import get_data_extractor
+from deet.extractors.hierarchical.base import VocabularyLLMExtractor
+from deet.utils.tokenisation import count_tokens
 
 from app.util.config import Settings
 from app.util.util import RateLimiter
@@ -22,12 +31,9 @@ class TaxonomyExtractor:
     """
 
     def __init__(self, settings: Settings) -> None:
-        from deet.data_models.taxonomy import load_schemes_from_ttl
-        from deet.extractors.base_extractor import DataExtractionConfig
-        from deet.extractors.extractor_registry import get_data_extractor
-        from deet.extractors.hierarchical.base import VocabularyLLMExtractor
-
+        self._settings = settings
         self._rpm_limiter = RateLimiter(rate=settings.llm_requests_per_minute)
+        self._tpm_limiter = RateLimiter(rate=settings.llm_tokens_per_minute)
         self._sem = asyncio.Semaphore(settings.llm_max_concurrent_extractions)
 
         config = DataExtractionConfig.from_yaml(settings.extraction_config)
@@ -46,14 +52,15 @@ class TaxonomyExtractor:
 
         self._uri_by_attr_id = {concept.attribute.attribute_id: concept.uri for ms in mapped_schemes for concept in ms.concepts.values()}
 
+        self._max_tokens = self._compute_max_tokens(config, self._attributes, self._max_requests)
+
         extractor = get_data_extractor(config)
         if isinstance(extractor, VocabularyLLMExtractor):
             extractor.mapped_schemes = mapped_schemes
         self._extractor = extractor
+        self._config = config
 
     def _load_csv_attributes(self, csv_path: Path) -> list[Attribute]:
-        from deet.data_models.base import Attribute, AttributeType
-
         rows = list(csv.DictReader(csv_path.open()))
         return [
             Attribute(
@@ -67,8 +74,6 @@ class TaxonomyExtractor:
         ]
 
     def _build_mapped_schemes(self, schemes: list[ConceptScheme[Concept]], attributes: list[Attribute]) -> list[MappedConceptScheme]:
-        from deet.data_models.taxonomy import MappedConcept, MappedConceptScheme
-
         attr_by_concept_id = {attr.concept_id: attr for attr in attributes if attr.concept_id is not None}
         mapped_schemes: list[MappedConceptScheme] = []
         for scheme in schemes:
@@ -92,6 +97,15 @@ class TaxonomyExtractor:
             return sum(self._scheme_depth(s) for s in mapped_schemes)
         return 1
 
+    def _compute_max_tokens(self, config: DataExtractionConfig, attributes: list[Attribute], max_requests: int) -> int:
+        """Compute maximum tokens."""
+        prompt_tokens = sum(count_tokens(config.model, attr.prompt or "") for attr in attributes)
+        system_tokens = count_tokens(config.model, str(config.prompt_config.system_prompt))
+        if config.max_tokens is None:
+            raise ValueError("Set max_tokens in the extraction config so output is bounded")
+        per_call = system_tokens + self._settings.max_document_tokens + config.max_tokens
+        return int(prompt_tokens + max_requests * per_call)
+
     def _scheme_depth(self, scheme: ConceptScheme) -> int:
         """Calculate number of levels the top down loop runs = longest root->leaf chain."""
 
@@ -101,12 +115,23 @@ class TaxonomyExtractor:
 
         return max((depth_from(root) for root in scheme.roots), default=0)
 
+    def _validate_text_tokens(self, text: str) -> None:
+        """Validate that a text to be extracted is under our maximum token length."""
+        token_count = count_tokens(self._config.model, text)
+        if token_count > self._settings.max_document_tokens:
+            raise ValueError("Document is longer than maximum tokens")
+
     async def extract(self, title: str | None, abstract: str | None) -> list[str]:
         """Return the concept URIs the model marks as applying to this reference."""
         text = f"# {title or ''}\n\n{abstract or ''}"
+        self._validate_text_tokens(text)
+
         async with self._sem:
             await self._rpm_limiter.acquire(self._max_requests)
+            await self._tpm_limiter.acquire(self._max_tokens)
             result = await asyncio.to_thread(self._extractor.extract_from_document, self._attributes, payload=text)
             num_requests = sum(1 for m in result.messages if m.get("role") == "system")
+            num_tokens = result.input_tokens + result.output_tokens
             await self._rpm_limiter.release(self._max_requests - num_requests)
+            await self._tpm_limiter.release(self._max_tokens - num_tokens)
         return [self._uri_by_attr_id[a.attribute.attribute_id] for a in result.annotations if a.output_data is True]
