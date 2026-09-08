@@ -208,7 +208,7 @@ class Settings(BaseSettings):
 
     @property
     def vocabulary_uri(self) -> HttpUrl:
-        return HttpUrl("https://vocab.evidence-repository.org/published/" f"{self.vocabulary_uid}/{self.vocabulary_version}/context.jsonld")
+        return HttpUrl(f"https://vocab.evidence-repository.org/published/{self.vocabulary_uid}/{self.vocabulary_version}/vocabulary.ttl")
 
     @property
     def context_uri(self) -> str:
