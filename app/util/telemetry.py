@@ -13,7 +13,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 if TYPE_CHECKING:
     from .config import OTelConfig
 
-logger = logging.getLogger("inclusion-robot.telemetry")
+logger = logging.getLogger("taxonomy-robot.telemetry")
 
 _tracer_provider: TracerProvider | None = None
 

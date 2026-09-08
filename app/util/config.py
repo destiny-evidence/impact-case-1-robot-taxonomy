@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     """Settings model for polling robot."""
 
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.secret.shared", ".env.secret"),
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
