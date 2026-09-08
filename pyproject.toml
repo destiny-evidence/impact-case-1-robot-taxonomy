@@ -129,4 +129,4 @@ exclude-newer-package = {destiny-sdk = false}
 package = true
 
 [tool.uv.sources]
-data-extraction-evaluation-toolkit = {git = "https://github.com/destiny-evidence/data-extraction-evaluation-toolkit", rev = "3fb14e91989c2abdfaa98cf44cd85f97a627f137"}
+data-extraction-evaluation-toolkit = {git = "https://github.com/destiny-evidence/data-extraction-evaluation-toolkit", rev = "919c4a8ad8edb50bec42562838887c8791604674"}

@@ -540,7 +540,7 @@ dependencies = [
     {name = "typer"},
 ]
 name = "data-extraction-evaluation-toolkit"
-source = {git = "https://github.com/destiny-evidence/data-extraction-evaluation-toolkit?rev=3fb14e91989c2abdfaa98cf44cd85f97a627f137#3fb14e91989c2abdfaa98cf44cd85f97a627f137"}
+source = {git = "https://github.com/destiny-evidence/data-extraction-evaluation-toolkit?rev=919c4a8ad8edb50bec42562838887c8791604674#919c4a8ad8edb50bec42562838887c8791604674"}
 version = "0.3.0.dev2"
 
 [[package]]
@@ -1009,7 +1009,7 @@ dev = [
 provides-extras = ["transformer"]
 requires-dist = [
     {extras = ["optuna", "sentencepiece", "torch"], marker = "extra == 'transformer'", name = "transformers", specifier = ">=5.14.1,<6"},
-    {git = "https://github.com/destiny-evidence/data-extraction-evaluation-toolkit?rev=3fb14e91989c2abdfaa98cf44cd85f97a627f137", name = "data-extraction-evaluation-toolkit"},
+    {git = "https://github.com/destiny-evidence/data-extraction-evaluation-toolkit?rev=919c4a8ad8edb50bec42562838887c8791604674", name = "data-extraction-evaluation-toolkit"},
     {marker = "extra == 'transformer'", name = "datasets", specifier = ">=5.0.0,<6"},
     {name = "destiny-sdk", specifier = ">=0.16.0"},
     {name = "httpx", specifier = ">=0.28.0,<0.29.0"},
