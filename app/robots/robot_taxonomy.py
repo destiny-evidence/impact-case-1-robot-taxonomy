@@ -29,7 +29,7 @@ class TaxonomyRobot(Runner):
                 "bool": {
                     "must": [
                         {"term": {"changeset.enhancements.content.annotations.scheme": self.settings.upstream_scheme}},
-                        {"term": {"changeset.enhancements.content.annotations.scheme": self.settings.upstream_label}},
+                        {"term": {"changeset.enhancements.content.annotations.label": self.settings.upstream_label}},
                         {"term": {"changeset.enhancements.content.annotations.value": True}},
                     ]
                 }
