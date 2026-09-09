@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main, feat/infra]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -31,13 +31,11 @@ jobs:
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
 
-      - name: Deploy built image to each robot
+      - name: Deploy built image to the robot
         uses: Azure/cli@v2.0.0
         with:
           inlineScript: |
-            for app in ${{ vars.CONTAINER_APP_NAMES }}; do
-              az containerapp update \
-                --name "$app" \
-                --resource-group ${{ vars.RESOURCE_GROUP }} \
-                --image ${{ env.IMAGE }}
-            done
+            az containerapp update \
+              --name ${{ vars.CONTAINER_APP_NAME }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --image ${{ env.IMAGE }}
