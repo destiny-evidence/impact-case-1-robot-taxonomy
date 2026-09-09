@@ -46,6 +46,7 @@ transformer = [
 
 [project.scripts]
 local-robot = "app.local.run:run"
+register-automation = "app.local.register:run"
 robot = "app:run"
 
 [tool.hatch.build.targets.wheel]
