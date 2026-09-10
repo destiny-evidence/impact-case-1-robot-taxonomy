@@ -11,3 +11,8 @@ output "identity_principal_id" {
 output "container_app_name" {
   value = azurerm_container_app.robot.name
 }
+
+output "egress_ip_address" {
+  description = "Static public IP all outbound robot traffic leaves from. Add this to any upstream IP allowlist."
+  value       = azurerm_public_ip.nat.ip_address
+}
