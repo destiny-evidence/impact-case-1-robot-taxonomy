@@ -57,6 +57,8 @@ locals {
     LLM_MAX_CONCURRENT_EXTRACTIONS = var.llm_max_concurrent_extractions
     LLM_REQUESTS_PER_MINUTE        = var.llm_requests_per_minute
     LLM_TOKENS_PER_MINUTE          = var.llm_tokens_per_minute
+    LLM_EXPECTED_OUTPUT_TOKENS     = var.llm_expected_output_tokens
+    DEFAULT_MAX_RETRIES            = var.llm_client_retries
     VOCABULARY_UID                 = var.vocabulary_uid
     VOCABULARY_VERSION             = var.vocabulary_version
     OTEL_ENABLED                   = var.otel_enabled

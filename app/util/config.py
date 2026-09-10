@@ -156,10 +156,16 @@ class Settings(BaseSettings):
 
     llm_num_retries: int = Field(default=3, description="Retries on transient errors.", ge=0)
 
-    llm_requests_per_minute: int = Field(default=1200, description="Number of prompts per minute for the API endpoint", ge=1)
-    llm_tokens_per_minute: int = Field(default=1200 * 1000)
+    llm_requests_per_minute: int = Field(default=2000, description="Prompts per minute for this container: deployment quota split across replicas", ge=1)
+    llm_tokens_per_minute: int = Field(default=2000 * 1000, description="Tokens per minute for this container: deployment quota split across replicas", ge=1)
 
-    llm_max_concurrent_extractions: int = Field(default=100, description="Maximum number of prompts to run in parallel", ge=1)
+    llm_expected_output_tokens: int = Field(
+        default=1500,
+        description="Completion tokens one prompt is expected to use, reserved from the token budget for the duration of an extraction.",
+        ge=1,
+    )
+
+    llm_max_concurrent_extractions: int = Field(default=50, description="References extracted at once; sizes the extractor's thread pool", ge=1)
 
     max_document_tokens: int = Field(default=1500, description="Maximum allowable tokens for a document we are extracting from", ge=1)
 

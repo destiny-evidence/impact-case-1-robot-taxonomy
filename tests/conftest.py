@@ -11,5 +11,7 @@ from uuid import uuid4
 
 os.environ.setdefault("ROBOT_ID", str(uuid4()))
 os.environ.setdefault("ROBOT_SECRET", "test-secret")
+os.environ.setdefault("VOCABULARY_UID", "test-vocab")
+os.environ.setdefault("VOCABULARY_VERSION", "1.0.0")
 # Always disable telemetry for tests
 os.environ["OTEL_ENABLED"] = "false"
