@@ -1,6 +1,7 @@
 """deet extraction wrapper: TTL-sourced prompts, CSV-pinned attribute identity."""
 
 import asyncio
+import contextvars
 import csv
 import functools
 from concurrent.futures import ThreadPoolExecutor
@@ -139,9 +140,10 @@ class TaxonomyExtractor:
         num_requests = 0
         num_tokens = 0
         try:
+            ctx = contextvars.copy_context()
             result = await asyncio.get_running_loop().run_in_executor(
                 self._pool,
-                functools.partial(self._extractor.extract_from_document, self._attributes, payload=text),
+                functools.partial(ctx.run, self._extractor.extract_from_document, self._attributes, payload=text),
             )
             num_requests = sum(1 for m in result.messages if m.get("role") == "system")
             num_tokens = result.input_tokens + result.output_tokens
