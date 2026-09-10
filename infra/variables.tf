@@ -105,7 +105,7 @@ variable "llm_max_concurrent_extractions" {
 variable "llm_requests_per_minute" {
   description = "LLM requests per minute per container, against the Foundry deployment quota. Divide by replica count if the robot is scaled out."
   type        = number
-  default     = 2000
+  default     = 3000
 }
 
 variable "llm_client_retries" {
@@ -123,7 +123,7 @@ variable "llm_expected_output_tokens" {
 variable "llm_tokens_per_minute" {
   description = "LLM tokens per minute per container, against the Foundry deployment quota. Divide by replica count if the robot is scaled out."
   type        = number
-  default     = 2000000
+  default     = 3000000
 }
 
 variable "llm_azure_api_base" {
