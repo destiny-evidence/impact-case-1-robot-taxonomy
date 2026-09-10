@@ -133,11 +133,11 @@ class TaxonomyExtractor:
         self._validate_text_tokens(text)
 
         async with self._sem:
-            await self._rpm_limiter.acquire(self._max_requests)
-            await self._tpm_limiter.acquire(self._max_tokens)
+            # await self._rpm_limiter.acquire(self._max_requests)
+            # await self._tpm_limiter.acquire(self._max_tokens)
             result = await asyncio.to_thread(self._extractor.extract_from_document, self._attributes, payload=text)
-            num_requests = sum(1 for m in result.messages if m.get("role") == "system")
-            num_tokens = result.input_tokens + result.output_tokens
-            await self._rpm_limiter.release(self._max_requests - num_requests)
-            await self._tpm_limiter.release(self._max_tokens - num_tokens)
+            # num_requests = sum(1 for m in result.messages if m.get("role") == "system")
+            # num_tokens = result.input_tokens + result.output_tokens
+            # await self._rpm_limiter.release(self._max_requests - num_requests)
+            # await self._tpm_limiter.release(self._max_tokens - num_tokens)
         return [self._uri_by_attr_id[a.attribute.attribute_id] for a in result.annotations if a.output_data is True]

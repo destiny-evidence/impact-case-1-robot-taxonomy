@@ -76,6 +76,12 @@ variable "concurrent_batches" {
   default = 1
 }
 
+variable "batch_lease_seconds" {
+  description = "How long the repository leases a polled batch to the robot. Must outlast the time it takes to annotate a batch, or the repository redelivers it. Null uses the repository's own default."
+  type        = number
+  default     = null
+}
+
 variable "extra_env" {
   description = "Environment variables applied to the robot."
   type        = map(string)

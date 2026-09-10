@@ -122,6 +122,7 @@ resource "azurerm_container_app" "robot" {
             BATCH_SIZE         = var.batch_size
             CONCURRENT_BATCHES = var.concurrent_batches
           },
+          var.batch_lease_seconds == null ? {} : { BATCH_LEASE_SECONDS = var.batch_lease_seconds },
           var.extra_env,
         )
         content {

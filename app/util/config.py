@@ -147,6 +147,12 @@ class Settings(BaseSettings):
         default=500,
         description="The number of references to include per batch",
     )
+    batch_lease_seconds: int | None = Field(
+        default=None,
+        description="How long the repository should lease a polled batch to this robot. Unset uses the repository's "
+        "own default. Must outlast the time it takes to annotate a batch, or the repository redelivers it elsewhere.",
+        ge=1,
+    )
 
     llm_num_retries: int = Field(default=3, description="Retries on transient errors.", ge=0)
 
@@ -205,6 +211,11 @@ class Settings(BaseSettings):
         if self.otel_enabled and not (self.otel_config and self.otel_config.api_key):
             logging.getLogger("taxonomy-robot").warning("OTEL_ENABLED set but no Honeycomb api_key in OTEL_CONFIG")
         return self
+
+    @property
+    def batch_lease(self) -> str | None:
+        """Lease duration as the ISO 8601 duration the repository API expects."""
+        return None if self.batch_lease_seconds is None else f"PT{self.batch_lease_seconds}S"
 
     @property
     def vocabulary_uri(self) -> HttpUrl:
