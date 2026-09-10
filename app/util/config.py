@@ -2,11 +2,10 @@
 
 import logging
 import tomllib
-from collections import OrderedDict
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from destiny_sdk.visibility import Visibility
@@ -73,12 +72,12 @@ def read_toml_value(path_to_toml: str | Path, *path: str) -> str:
             if not (current_node := current_node.get(step, None)):
                 raise ValueError(f"`{steps}` not present in {path_to_toml}")
 
-        if current_node is None or type(current_node) is not str:
-            raise ValueError(
+        if not isinstance(current_node, str):
+            raise ValueError(  # noqa: TRY004
                 f"{steps} did not lead to singular string value in {path_to_toml}",
             )
 
-        return cast("str", current_node)  # type: ignore[redundant-cast]
+        return current_node
 
 
 class OTelConfig(BaseModel):
@@ -93,7 +92,7 @@ class Settings(BaseSettings):
     """Settings model for polling robot."""
 
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.secret.shared", ".env.secret"),
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -148,87 +147,89 @@ class Settings(BaseSettings):
         default=500,
         description="The number of references to include per batch",
     )
+    batch_lease_seconds: int | None = Field(
+        default=None,
+        description="How long the repository should lease a polled batch to this robot. Unset uses the repository's "
+        "own default. Must outlast the time it takes to annotate a batch, or the repository redelivers it elsewhere.",
+        ge=1,
+    )
+
+    llm_num_retries: int = Field(default=3, description="Retries on transient errors.", ge=0)
+
+    llm_requests_per_minute: int = Field(default=2000, description="Prompts per minute for this container: deployment quota split across replicas", ge=1)
+    llm_tokens_per_minute: int = Field(default=2000 * 1000, description="Tokens per minute for this container: deployment quota split across replicas", ge=1)
+
+    llm_expected_output_tokens: int = Field(
+        default=1500,
+        description="Completion tokens one prompt is expected to use, reserved from the token budget for the duration of an extraction.",
+        ge=1,
+    )
+
+    llm_max_concurrent_extractions: int = Field(default=50, description="References extracted at once; sizes the extractor's thread pool", ge=1)
+
+    max_document_tokens: int = Field(default=1500, description="Maximum allowable tokens for a document we are extracting from", ge=1)
+
+    min_document_tokens: int = Field(
+        default=50,
+        description="Minimum tokens for a document to be extractable; below this (e.g. missing abstract) it is skipped as invalid",
+        ge=1,
+    )
 
     # Robot identification and authentication settings
     robot_secret: SecretStr = Field(
         description="Secret needed for communicating with destiny repo.",
     )
-    # Miscellaneous settings
-    min_text_length: int = Field(
-        default=200,
-        description="Minimum length of title+abstract that we might consider for classification",
+
+    extraction_config: Path = Field(
+        default=Path(".configs/taxonomy/extraction_config.yaml"),
+        description="Path to the frozen deet DataExtractionConfig. Its vocabulary_path and "
+        "vocabulary_mapping_path resolve relative to this file's directory.",
     )
 
-    # Files for search query, pre-filter model, and LLM prompts
-    search_query: Path = Field(default=Path(".configs/search-query.txt"), description="Path to file containing search query")
-    model_prefilter: Path = Field(default=Path(".configs/models/high-recall-svm.sklearn"), description="Path to serialised sklearn model")
-    prompt_high_recall: Path = Field(default=Path(".configs/prompts/high-recall.txt"), description="Path to prompt/model config for high-recall LLM")
-    prompt_balanced: Path = Field(default=Path(".configs/prompts/balanced.txt"), description="Path to prompt/model config for balanced LLM")
-    prompt_high_precision: Path = Field(default=Path(".configs/prompts/high-precision.txt"), description="Path to prompt/model config for high-precision LLM")
+    extraction_attribute_csv: Path = Field(default=Path(".configs/taxonomy/prompts_used.csv"), description="Path to the attribute csv.")
 
-    # Pre-filter execution settings
-    batch_size_prefilter: int = Field(
-        default=2000,
-        description="Processing the full enhancement batch at once might consume too much RAM, so we will process the data in smaller batches of this size.",
+    upstream_scheme: str = Field(
+        default="domain-inclusion",
+        description="scheme of the inclusion annotation that triggers taxonomy annotation.",
+    )
+    upstream_label: str = Field(
+        default="destiny-high-precision",
+        description="label of the final inclusion decision that triggers taxonomy annotation.",
     )
 
-    # LLM provider settings
-    llm_azure_api_key: str | None = Field(
-        default=None,
-        description="Azure OpenAI API key if using Azure provider.",
+    abandon_threshold: float = Field(
+        default=0.1,
+        description="Shut the robot down (leaving the batch unfinalised for redelivery) if more than this "
+        "fraction of references fail after retries — a signal of a systemic outage rather than bad documents.",
+        ge=0.0,
+        le=1.0,
     )
-    llm_azure_api_base: str | None = Field(default=None, description="Base URL for azure openAI.")
-    llm_max_context_tokens: int = Field(default=3000, description="Maximum number of context tokens to include in a single request per document.")
-    llm_timeout: float = Field(default=15.0, description="Per-request timeout in seconds. Normal calls run 3-7s.", gt=0.0)
-    llm_num_retries: int = Field(default=3, description="Retries on transient errors.", ge=0)
-    llm_max_concurrent_prompts: int = Field(default=100, description="Maximum number of prompts to run in parallel", ge=1)
-    llm_prompts_per_minute: int = Field(default=1200, description="Number of prompts per minute for the API endpoint", ge=1)
 
     # Enhancement settings
     enhancement_visibility: Visibility = Field(default=Visibility.PUBLIC, description="Visibility level for Enhancements")
-    set_unseen_false: bool = Field(
-        default=True,
-        description="If true, set BooleanAnnotation(value=False) for references that are not classified because of missing abstracts or chained prompts.",
-    )
-    annotation_scheme_query: str = Field(default="search", description="Defines the value to use for BooleanAnnotation.scheme for search queries")
-    annotation_scheme_incl: str = Field(
-        default="domain-inclusion",
-        description="Defines the value to use for BooleanAnnotation.scheme for inclusion classification",
-    )
-    annotation_label_query: str = Field(default="destiny-ic1-inclusion", description="Defines the value to use for BooleanAnnotation.label for search queries")
-    annotation_label_prefilter: str = Field(
-        default="destiny-prefilter",
-        description="Defines the value to use for BooleanAnnotation.label for pre-filtering",
-    )
-    annotation_label_recall: str = Field(
-        default="destiny-high-recall",
-        description="Defines the value to use for BooleanAnnotation.label for high-recall LLM decisions",
-    )
-    annotation_label_balanced: str = Field(
-        default="destiny-balanced",
-        description="Defines the value to use for BooleanAnnotation.label for balanced LLM decisions",
-    )
-    annotation_label_precision: str = Field(
-        default="destiny-high-precision",
-        description="Defines the value to use for BooleanAnnotation.label for high-precision LLM decisions",
-    )
+
+    vocabulary_uid: str = Field(description="Project UID under which the vocabulary is published in the Vocabulary Builder.")
+
+    vocabulary_version: str = Field(description="Published vocabulary version.")
 
     @model_validator(mode="after")
     def _warn_missing_otel_api_key(self) -> "Settings":
         if self.otel_enabled and not (self.otel_config and self.otel_config.api_key):
-            logging.getLogger("inclusion-robot").warning("OTEL_ENABLED set but no Honeycomb api_key in OTEL_CONFIG")
+            logging.getLogger("taxonomy-robot").warning("OTEL_ENABLED set but no Honeycomb api_key in OTEL_CONFIG")
         return self
 
     @property
-    def prompt_configs(self) -> OrderedDict[str, Path]:
-        # OrderedDict not necessary for newer python versions, just making extra sure...
-        return OrderedDict(
-            [
-                (self.annotation_label_recall, self.prompt_high_recall),
-                (self.annotation_label_balanced, self.prompt_balanced),
-                (self.annotation_label_precision, self.prompt_high_precision),
-            ],
-        )
+    def batch_lease(self) -> str | None:
+        """Lease duration as the ISO 8601 duration the repository API expects."""
+        return None if self.batch_lease_seconds is None else f"PT{self.batch_lease_seconds}S"
+
+    @property
+    def vocabulary_uri(self) -> HttpUrl:
+        return HttpUrl(f"https://vocab.evidence-repository.org/published/{self.vocabulary_uid}/{self.vocabulary_version}/vocabulary.ttl")
+
+    @property
+    def context_uri(self) -> str:
+        return "https://vocab.evidence-repository.org/published/" f"{self.vocabulary_uid}/{self.vocabulary_version}/context.jsonld"
 
 
 @lru_cache(maxsize=1)

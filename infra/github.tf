@@ -46,10 +46,8 @@ resource "azurerm_role_assignment" "github_actions_acr_push" {
 }
 
 resource "azurerm_role_assignment" "github_actions_robot" {
-  for_each = azurerm_container_app.robot
-
   principal_id         = azuread_service_principal.github_actions.object_id
-  scope                = each.value.id
+  scope                = azurerm_container_app.robot.id
   role_definition_name = "Contributor"
 }
 
@@ -81,8 +79,7 @@ locals {
     RESOURCE_GROUP        = azurerm_resource_group.this.name
     ENVIRONMENT_NAME      = var.environment
     CONTAINER_APP_ENV     = azurerm_container_app_environment.this.name
-    CONTAINER_APP_NAMES   = join(" ", sort([for a in azurerm_container_app.robot : a.name]))
-    MODEL_BLOB_URL        = var.model_blob_url
+    CONTAINER_APP_NAME    = azurerm_container_app.robot.name
   }
 }
 

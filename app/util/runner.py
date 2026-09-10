@@ -27,7 +27,7 @@ class Runner(ABC):
         self.settings = get_settings()
         self.name = name
 
-        logger = get_logger("inclusion-robot", init_logging=True, base_level=self.settings.loglevel)
+        logger = get_logger("taxonomy-robot", init_logging=True, base_level=self.settings.loglevel)
         self.logger = logger.getChild(name)
         self.loop_logger = self.logger.getChild("loop")
         self.total_entries_processed = 0

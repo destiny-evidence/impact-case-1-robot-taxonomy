@@ -21,7 +21,7 @@ def test_otel_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OTEL_ENABLED", raising=False)
     monkeypatch.delenv("OTEL_CONFIG", raising=False)
 
-    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    settings = Settings(_env_file=None)
 
     assert settings.otel_enabled is False
     assert settings.otel_config is None
@@ -33,7 +33,7 @@ def test_otel_config_parsed_from_json_env(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("OTEL_ENABLED", "true")
     monkeypatch.setenv("OTEL_CONFIG", '{"api_key": "k"}')
 
-    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    settings = Settings(_env_file=None)
 
     assert settings.otel_enabled is True
     assert settings.otel_config is not None
@@ -48,7 +48,7 @@ class _FailingRunner(Runner):
     def _automation_query(self) -> "RobotAutomationIn":
         raise NotImplementedError
 
-    async def _loop_task(self) -> None:
+    async def _loop_task(self) -> bool:
         raise RuntimeError("boom")
 
 
@@ -73,9 +73,9 @@ def test_loop_task_span_records_failure() -> None:
 
 def test_instrument_suppresses_llm_message_content() -> None:
     """LiteLLM's per-request kill switch is set, so prompts stay out of spans."""
-    import litellm  # noqa: PLC0415
+    import litellm
 
-    from app.util.telemetry import instrument  # noqa: PLC0415
+    from app.util.telemetry import instrument
 
     instrument(capture_llm_content=False)
     assert litellm.turn_off_message_logging is True
@@ -89,8 +89,8 @@ def test_instrument_suppresses_llm_message_content() -> None:
 
 def test_configure_telemetry_names_the_service() -> None:
     """service.name is `destiny-<task>-robot-<env>`, and a second call is a no-op."""
-    from app.util.config import OTelConfig  # noqa: PLC0415
-    from app.util.telemetry import configure_telemetry  # noqa: PLC0415
+    from app.util.config import OTelConfig
+    from app.util.telemetry import configure_telemetry
 
     if isinstance(trace.get_tracer_provider(), TracerProvider):
         pytest.skip("a tracer provider is already installed globally; configure_telemetry is set-once")

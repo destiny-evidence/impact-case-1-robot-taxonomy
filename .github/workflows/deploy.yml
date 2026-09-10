@@ -2,8 +2,22 @@ name: Deploy
 
 on:
   push:
-    branches: [main, feat/infra]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy to, development is currently a second production.
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
+          - development
+
+
+concurrency:
+  group: deploy-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
 
 permissions:
   id-token: write
@@ -12,11 +26,9 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.environment || 'staging' }}
     env:
       IMAGE: ${{ vars.REGISTRY_SERVER }}/${{ vars.APP_NAME }}:${{ github.sha }}
-      # Must match MODEL_PREFILTER in the Dockerfile (minus the /app prefix).
-      MODEL_PATH: .configs/models/high-recall-svm.sklearn
     steps:
       - uses: actions/checkout@v4
 
@@ -27,40 +39,17 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # The serialised model is not in git; it is pulled into the build context so
-      # `COPY . .` bakes it into the image at $MODEL_PREFILTER.
-      - name: Download prefilter model
-        run: |
-          set -euo pipefail
-          if [ -z "${MODEL_BLOB_URL:-}" ]; then
-            echo "MODEL_BLOB_URL is not set for this environment" >&2
-            exit 1
-          fi
-          mkdir -p "$(dirname "$MODEL_PATH")"
-          az storage blob download \
-            --blob-url "$MODEL_BLOB_URL" \
-            --auth-mode login \
-            --file "$MODEL_PATH" \
-            --no-progress \
-            --only-show-errors
-          test -s "$MODEL_PATH"
-          echo "Downloaded $(du -h "$MODEL_PATH" | cut -f1) to $MODEL_PATH"
-        env:
-          MODEL_BLOB_URL: ${{ vars.MODEL_BLOB_URL }}
-
       - name: Build and push image
         run: |
           az acr login --name ${{ vars.REGISTRY_NAME }}
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
 
-      - name: Deploy built image to each robot
+      - name: Deploy built image to the robot
         uses: Azure/cli@v2.0.0
         with:
           inlineScript: |
-            for app in ${{ vars.CONTAINER_APP_NAMES }}; do
-              az containerapp update \
-                --name "$app" \
-                --resource-group ${{ vars.RESOURCE_GROUP }} \
-                --image ${{ env.IMAGE }}
-            done
+            az containerapp update \
+              --name ${{ vars.CONTAINER_APP_NAME }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --image ${{ env.IMAGE }}

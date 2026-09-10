@@ -129,7 +129,7 @@ celerybeat.pid
 
 # Environments
 .env
-.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -182,5 +182,4 @@ cython_debug/
 
 .misc/
 .scratch/
-.configs/
 .cache/
