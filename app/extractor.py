@@ -2,6 +2,8 @@
 
 import asyncio
 import csv
+import functools
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from deet.data_models.base import Attribute, AttributeType
@@ -38,7 +40,7 @@ class TaxonomyExtractor:
         self._settings = settings
         self._rpm_limiter = RateLimiter(rate=settings.llm_requests_per_minute)
         self._tpm_limiter = RateLimiter(rate=settings.llm_tokens_per_minute)
-        self._sem = asyncio.Semaphore(settings.llm_max_concurrent_extractions)
+        self._pool = ThreadPoolExecutor(max_workers=settings.llm_max_concurrent_extractions, thread_name_prefix="extract")
 
         config = DataExtractionConfig.from_yaml(settings.extraction_config)
         if not config.vocabulary_path:
@@ -56,7 +58,10 @@ class TaxonomyExtractor:
 
         self._uri_by_attr_id = {concept.attribute.attribute_id: concept.uri for ms in mapped_schemes for concept in ms.concepts.values()}
 
-        self._max_tokens = self._compute_max_tokens(config, self._attributes, self._max_requests)
+        if config.max_tokens is None:
+            raise ValueError("Set max_tokens in the extraction config so output is bounded")
+        self._prompt_tokens = int(sum(count_tokens(config.model, attr.prompt or "") for attr in self._attributes))
+        self._system_tokens = int(count_tokens(config.model, str(config.prompt_config.system_prompt)))
 
         extractor = get_data_extractor(config)
         if isinstance(extractor, VocabularyLLMExtractor):
@@ -101,14 +106,10 @@ class TaxonomyExtractor:
             return sum(self._scheme_depth(s) for s in mapped_schemes)
         return 1
 
-    def _compute_max_tokens(self, config: DataExtractionConfig, attributes: list[Attribute], max_requests: int) -> int:
-        """Compute maximum tokens."""
-        prompt_tokens = sum(count_tokens(config.model, attr.prompt or "") for attr in attributes)
-        system_tokens = count_tokens(config.model, str(config.prompt_config.system_prompt))
-        if config.max_tokens is None:
-            raise ValueError("Set max_tokens in the extraction config so output is bounded")
-        per_call = system_tokens + self._settings.max_document_tokens + config.max_tokens
-        return int(prompt_tokens + max_requests * per_call)
+    def _reserved_tokens(self, doc_tokens: int) -> int:
+        """Tokens the cascade over this document is expected to use."""
+        per_call = self._system_tokens + doc_tokens + self._settings.llm_expected_output_tokens
+        return self._prompt_tokens + self._max_requests * per_call
 
     def _scheme_depth(self, scheme: ConceptScheme) -> int:
         """Calculate number of levels the top down loop runs = longest root->leaf chain."""
@@ -119,25 +120,32 @@ class TaxonomyExtractor:
 
         return max((depth_from(root) for root in scheme.roots), default=0)
 
-    def _validate_text_tokens(self, text: str) -> None:
-        """Validate the document text is within the configured token range."""
-        token_count = count_tokens(self._config.model, text)
+    def _validate_text_tokens(self, text: str) -> int:
+        """Validate the document text is within the configured token range, returning its size."""
+        token_count = int(count_tokens(self._config.model, text))
         if token_count < self._settings.min_document_tokens:
             raise InvalidDocumentError(f"Document has {token_count} tokens, under the {self._settings.min_document_tokens} minimum")
         if token_count > self._settings.max_document_tokens:
             raise InvalidDocumentError(f"Document has {token_count} tokens, over the {self._settings.max_document_tokens} maximum")
+        return token_count
 
     async def extract(self, title: str | None, abstract: str | None) -> list[str]:
         """Return the concept URIs the model marks as applying to this reference."""
         text = f"# {title or ''}\n\n{abstract or ''}"
-        self._validate_text_tokens(text)
+        max_tokens = self._reserved_tokens(self._validate_text_tokens(text))
 
-        async with self._sem:
-            await self._rpm_limiter.acquire(self._max_requests)
-            await self._tpm_limiter.acquire(self._max_tokens)
-            result = await asyncio.to_thread(self._extractor.extract_from_document, self._attributes, payload=text)
+        await self._rpm_limiter.acquire(self._max_requests)
+        await self._tpm_limiter.acquire(max_tokens)
+        num_requests = 0
+        num_tokens = 0
+        try:
+            result = await asyncio.get_running_loop().run_in_executor(
+                self._pool,
+                functools.partial(self._extractor.extract_from_document, self._attributes, payload=text),
+            )
             num_requests = sum(1 for m in result.messages if m.get("role") == "system")
             num_tokens = result.input_tokens + result.output_tokens
+            return [self._uri_by_attr_id[a.attribute.attribute_id] for a in result.annotations if a.output_data is True]
+        finally:
             await self._rpm_limiter.release(self._max_requests - num_requests)
-            await self._tpm_limiter.release(self._max_tokens - num_tokens)
-        return [self._uri_by_attr_id[a.attribute.attribute_id] for a in result.annotations if a.output_data is True]
+            await self._tpm_limiter.release(max_tokens - num_tokens)

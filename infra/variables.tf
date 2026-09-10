@@ -97,21 +97,33 @@ variable "destiny_repository_url" {
 
 # LLM
 variable "llm_max_concurrent_extractions" {
-  description = "Maximum LLM requests in flight per container. Divide by replica count if the robot is scaled out."
+  description = "References extracted at once per container; sizes the extractor thread pool."
   type        = number
-  default     = 100
+  default     = 50
 }
 
 variable "llm_requests_per_minute" {
   description = "LLM requests per minute per container, against the Foundry deployment quota. Divide by replica count if the robot is scaled out."
   type        = number
-  default     = 1200
+  default     = 2000
+}
+
+variable "llm_client_retries" {
+  description = "Retries inside the OpenAI client, which is status-aware and honours Retry-After. Read by litellm at import."
+  type        = number
+  default     = 3
+}
+
+variable "llm_expected_output_tokens" {
+  description = "Completion tokens reserved per prompt. Too high throttles throughput; too low overshoots the quota into 429s."
+  type        = number
+  default     = 1500
 }
 
 variable "llm_tokens_per_minute" {
   description = "LLM tokens per minute per container, against the Foundry deployment quota. Divide by replica count if the robot is scaled out."
   type        = number
-  default     = 1200000
+  default     = 2000000
 }
 
 variable "llm_azure_api_base" {
