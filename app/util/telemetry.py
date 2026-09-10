@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+import httpx
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
@@ -16,6 +17,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger("taxonomy-robot.telemetry")
 
 _tracer_provider: TracerProvider | None = None
+
+CONNECT_TIMEOUT_SECONDS = 5.0
+READ_TIMEOUT_SECONDS = 180.0
+KEEPALIVE_EXPIRY_SECONDS = 120.0
+MAX_CONNECTIONS = 200
+
+
+class _PinnedConnectTransport(httpx.HTTPTransport):
+    """Force the connect timeout, whatever the caller asked for."""
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        timeout = dict(request.extensions.get("timeout", {}))
+        timeout["connect"] = CONNECT_TIMEOUT_SECONDS
+        request.extensions = {**request.extensions, "timeout": timeout}
+        return super().handle_request(request)
 
 
 def configure_telemetry(config: "OTelConfig", task: str, environment: str, version: str) -> None:
@@ -65,6 +81,16 @@ def instrument(capture_llm_content: bool = False) -> None:
     HTTPXClientInstrumentor().instrument()
     litellm.turn_off_message_logging = not capture_llm_content
     litellm.callbacks = ["otel"]
+
+    limits = httpx.Limits(
+        max_connections=MAX_CONNECTIONS,
+        max_keepalive_connections=MAX_CONNECTIONS,
+        keepalive_expiry=KEEPALIVE_EXPIRY_SECONDS,
+    )
+    litellm.client_session = httpx.Client(
+        transport=_PinnedConnectTransport(limits=limits),
+        timeout=httpx.Timeout(READ_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
+    )
 
 
 def shutdown_telemetry() -> None:
