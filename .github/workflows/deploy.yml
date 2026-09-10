@@ -6,13 +6,18 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Environment to deploy to
+        description: Environment to deploy to, development is currently a second production.
         type: choice
         default: staging
         options:
           - staging
           - production
+          - development
 
+
+concurrency:
+  group: deploy-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
 
 permissions:
   id-token: write
