@@ -59,6 +59,7 @@ locals {
     LLM_TOKENS_PER_MINUTE          = var.llm_tokens_per_minute
     LLM_EXPECTED_OUTPUT_TOKENS     = var.llm_expected_output_tokens
     DEFAULT_MAX_RETRIES            = var.llm_client_retries
+    USE_OTEL_LITELLM_REQUEST_SPAN  = true
     VOCABULARY_UID                 = var.vocabulary_uid
     VOCABULARY_VERSION             = var.vocabulary_version
     OTEL_ENABLED                   = var.otel_enabled
