@@ -106,6 +106,7 @@ class Repository:
             self.robot_client.poll_robot_enhancement_batch,
             robot_id=self.settings.robot_id,
             limit=self.settings.batch_size if batch_size is None else batch_size,
+            lease=self.settings.batch_lease,
             timeout=HTTP_TIMEOUT_SECONDS,
         )
         if batch_info is None:
