@@ -58,6 +58,6 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: uv run pytest
+        entry: uv run --python 3.13 pytest
         language: system
         pass_filenames: false
