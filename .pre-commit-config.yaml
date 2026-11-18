@@ -54,3 +54,10 @@ repos:
         args:
           - --fix=lf
       - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
