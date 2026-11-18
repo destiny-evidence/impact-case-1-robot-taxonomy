@@ -101,8 +101,10 @@ class TaxonomyRobot(Runner):
         Overview of exclusion and supersession cases:
           1) ID     in exclude AND no existing taxonomy -> do nothing
           2) ID     in exclude AND    existing taxonomy -> Create TombstoneEnhancement with supersession
-          3) ID not in exclude AND no existing taxonomy -> Classify and write new LDE with supersession
-          4) ID not in exclude AND    existing taxonomy -> do nothing
+          3) ID not in exclude AND no existing taxonomy -> Classify and write new LDE without
+          4) ID not in exclude AND    existing taxonomy -> if settings.supersede_existing:
+                                                              True: Classify and write LDE with supersession
+                                                              False: do nothing
         """
         batch_info, references = await self.repository.get_next_batch()
 
@@ -113,8 +115,6 @@ class TaxonomyRobot(Runner):
         results: dict[UUID, list[str]] = {}
         permanent: dict[UUID, str] = {}
         failed: dict[UUID, str] = {}
-        excluded: dict[UUID, str] = {}
-        supersedes: dict[UUID, UUID] = {}
 
         entries: list[EnhancementResultEntry] = []
 
@@ -122,26 +122,31 @@ class TaxonomyRobot(Runner):
             span.set_attribute("app.reference.count", len(references))
 
             # Find all references that now have `inclusion == False`
-            excluded = {
+            non_relevant = {
                 reference.id: f"Reference is classified as not relevant by {enhancement.id}"
                 for reference in references
                 if (enhancement := self._is_not_included(reference)) is not None
             }
 
             # Check reference for existing taxonomy annotation that we would need to supersede
-            supersedes = {
-                reference.id: enhancement.id for reference in references if (enhancement := self._existing_taxonomy_annotation(reference)) is not None
+            has_existing_annotation = {
+                reference.id: enhancement.id  # Remember enhancement_id to be superseded per reference
+                for reference in references
+                if (enhancement := self._existing_taxonomy_annotation(reference)) is not None
             }
 
-            # Classify all non-excluded references
+            skip_classification = non_relevant.keys() if self.settings.supersede_existing else (non_relevant.keys() | has_existing_annotation.keys())
+            needs_retirement = non_relevant.keys() & has_existing_annotation
+
+            # Classify all references that are not excluded or already have a taxonomy classification
             outcomes = await asyncio.gather(
-                *(self._annotate_reference(reference) for reference in references if reference.id not in excluded),
+                *(self._annotate_reference(reference) for reference in references if reference.id not in skip_classification),
                 return_exceptions=True,
             )
 
             # Collect results (classifications or error messages)
             for reference, outcome in zip(
-                (reference for reference in references if reference.id not in excluded),
+                (reference for reference in references if reference.id not in skip_classification),
                 outcomes,
                 strict=True,
             ):
@@ -164,9 +169,10 @@ class TaxonomyRobot(Runner):
                     "app.taxonomy_annotated": len(results),
                     "app.taxonomy_permanent_failures": len(permanent),
                     "app.taxonomy_failed": len(failed),
-                    "app.taxonomy_excluded": len(excluded),
-                    "app.taxonomy_superseded": len(supersedes),
-                    "app.taxonomy_retired": len(supersedes.keys() & excluded),
+                    "app.taxonomy_skipped": len(skip_classification),
+                    "app.taxonomy_non_relevant": len(non_relevant),
+                    "app.taxonomy_had_annotation": len(has_existing_annotation),
+                    "app.taxonomy_needs_retirement": needs_retirement,
                 },
             )
 
@@ -177,11 +183,10 @@ class TaxonomyRobot(Runner):
                 source=self.NAME,
                 visibility=self.settings.enhancement_visibility,
                 robot_version=self.settings.robot_version,
-                supersedes=supersedes[reference_id],
-                content=TombstoneEnhancement(reason=reason),
+                supersedes=has_existing_annotation[reference_id],
+                content=TombstoneEnhancement(reason=non_relevant.get(reference_id, "Taxonomy classification became obsolete")),
             )
-            for reference_id, reason in excluded.items()
-            if reference_id in supersedes
+            for reference_id in needs_retirement
         ]
 
         # Handle case (3) ID not in exclude AND no existing taxonomy -> Classify and write new LDE with supersession
@@ -191,23 +196,23 @@ class TaxonomyRobot(Runner):
                 source=self.NAME,
                 visibility=self.settings.enhancement_visibility,
                 robot_version=self.settings.robot_version,
-                supersedes=supersedes.get(reference_id, None),
+                supersedes=has_existing_annotation.get(reference_id),
                 content=build_linked_data_enhancement(concept_uris=uris, vocabulary_uri=self.settings.vocabulary_uri, context_uri=self.settings.context_uri),
             )
             for reference_id, uris in results.items()
         ]
 
-        # Handle case (3) where annotation failed
+        # Handle case (3) where classification failed
         failures = {**permanent, **failed}
         entries += [LinkedRobotError(reference_id=reference_id, message=message) for reference_id, message in failures.items()]
 
-        # Send enhancements to repository
+        # Send enhancements and errors to repository
         await self.repository.submit_enhancements(batch_info=batch_info, enhancements=entries)
 
         self.loop_logger.info(
             f"[Total: {self.total_entries_processed:,} entries] Submitted {len(results):,} enhancements, "
             f"{len(failures):,} failures ({len(permanent):,} permanent, {len(failed):,} failed-after-retries), "
-            f"{len(excluded):,} excluded, {len(supersedes):,} superseded, {len(supersedes.keys() & excluded):,} retired.",
+            f"{len(non_relevant):,} excluded, {len(has_existing_annotation):,} superseded, {len(needs_retirement):,} retired.",
         )
 
         return True

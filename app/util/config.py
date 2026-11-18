@@ -182,8 +182,7 @@ class Settings(BaseSettings):
 
     extraction_config: Path = Field(
         default=Path(".configs/taxonomy/extraction_config.yaml"),
-        description="Path to the frozen deet DataExtractionConfig. Its vocabulary_path and "
-        "vocabulary_mapping_path resolve relative to this file's directory.",
+        description="Path to the frozen deet DataExtractionConfig. Its vocabulary_path and vocabulary_mapping_path resolve relative to this file's directory.",
     )
 
     extraction_attribute_csv: Path = Field(default=Path(".configs/taxonomy/prompts_used.csv"), description="Path to the attribute csv.")
@@ -203,6 +202,11 @@ class Settings(BaseSettings):
         "fraction of references fail after retries — a signal of a systemic outage rather than bad documents.",
         ge=0.0,
         le=1.0,
+    )
+
+    supersede_existing: bool = Field(
+        default=False,
+        description="Run classification again for a reference marked as relevant and where we already have a taxonomy enhancement and supersede that.",
     )
 
     # Enhancement settings
@@ -229,7 +233,7 @@ class Settings(BaseSettings):
 
     @property
     def context_uri(self) -> str:
-        return "https://vocab.evidence-repository.org/published/" f"{self.vocabulary_uid}/{self.vocabulary_version}/context.jsonld"
+        return f"https://vocab.evidence-repository.org/published/{self.vocabulary_uid}/{self.vocabulary_version}/context.jsonld"
 
 
 @lru_cache(maxsize=1)
