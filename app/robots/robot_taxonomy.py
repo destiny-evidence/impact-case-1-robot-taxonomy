@@ -101,7 +101,7 @@ class TaxonomyRobot(Runner):
         Overview of exclusion and supersession cases:
           1) ID     in exclude AND no existing taxonomy -> do nothing
           2) ID     in exclude AND    existing taxonomy -> Create TombstoneEnhancement with supersession
-          3) ID not in exclude AND no existing taxonomy -> Classify and write new LDE without
+          3) ID not in exclude AND no existing taxonomy -> Classify and write new LDE without supersession
           4) ID not in exclude AND    existing taxonomy -> if settings.supersede_existing:
                                                               True: Classify and write LDE with supersession
                                                               False: do nothing
