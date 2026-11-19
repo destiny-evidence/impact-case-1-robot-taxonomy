@@ -202,7 +202,7 @@ class TaxonomyRobot(Runner):
             for reference_id, uris in results.items()
         ]
 
-        # Handle case (3) where classification failed
+        # Handle case (3) and (4) where classification failed
         failures = {**permanent, **failed}
         entries += [LinkedRobotError(reference_id=reference_id, message=message) for reference_id, message in failures.items()]
 
