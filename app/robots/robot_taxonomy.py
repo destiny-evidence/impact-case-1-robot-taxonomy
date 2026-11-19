@@ -172,7 +172,7 @@ class TaxonomyRobot(Runner):
                     "app.taxonomy_skipped": len(skip_classification),
                     "app.taxonomy_non_relevant": len(non_relevant),
                     "app.taxonomy_had_annotation": len(has_existing_annotation),
-                    "app.taxonomy_needs_retirement": needs_retirement,
+                    "app.taxonomy_needs_retirement": len(needs_retirement),
                 },
             )
 
